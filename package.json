@@ -1,0 +1,19 @@
+{
+  "name": "koc-discovery",
+  "version": "1.0.0",
+  "description": "多平台 KOC 发现工具 - 小红书/YouTube/抖音/TikTok",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "test:api:smoke": "node scripts/api_smoke_test.mjs",
+    "test:evaluator": "node scripts/evaluator_fixture_test.mjs"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.42.0",
+    "csv-stringify": "^6.4.0",
+    "dotenv": "^16.4.0",
+    "uuid": "^9.0.0"
+  }
+}

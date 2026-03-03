@@ -1,0 +1,37 @@
+{
+  "keyword": "健身",
+  "kocs": [
+    {
+      "platform": "youtube",
+      "platformIcon": "🎬",
+      "userId": "UC_TEST_001",
+      "username": "fitness-demo",
+      "nickname": "Fitness Demo",
+      "avatar": "",
+      "profileUrl": "https://www.youtube.com/channel/UC_TEST_001",
+      "followers": 12500,
+      "following": 0,
+      "likes": 0,
+      "totalViews": 560000,
+      "posts": 180,
+      "description": "健身教程",
+      "category": "Fitness",
+      "contactInfo": {
+        "email": "fitness@example.com"
+      },
+      "recentPosts": [],
+      "engagementRate": 0.04,
+      "evaluation": {
+        "totalScore": 73.5,
+        "grade": "A",
+        "confidence": 72,
+        "tags": [
+          "优质KOC",
+          "高互动",
+          "有联系方式"
+        ],
+        "recommendation": "推荐合作，可优先进入沟通名单"
+      }
+    }
+  ]
+}

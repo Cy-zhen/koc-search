@@ -1,0 +1,61 @@
+[
+  {
+    "id": "EVAL-ENG-001",
+    "keyword": "健身",
+    "input": {
+      "platform": "youtube",
+      "followers": 10000,
+      "posts": 120,
+      "description": "健身教程",
+      "category": "Fitness",
+      "contactInfo": {
+        "email": "coach@example.com"
+      },
+      "recentPosts": [
+        { "title": "健身动作", "likes": 1200, "comments": 90, "shares": 30 },
+        { "title": "训练计划", "likes": 980, "comments": 70, "shares": 20 }
+      ]
+    },
+    "expected": {
+      "gradeAtLeast": "A",
+      "confidenceAtLeast": 60
+    }
+  },
+  {
+    "id": "EVAL-REACH-001",
+    "keyword": "running",
+    "input": {
+      "platform": "tiktok",
+      "followers": 15000,
+      "posts": 90,
+      "description": "running tips",
+      "category": "Fitness",
+      "contactInfo": {},
+      "recentPosts": [
+        { "title": "5k prep", "views": 42000 },
+        { "title": "shoe test", "views": 36000 }
+      ]
+    },
+    "expected": {
+      "gradeAtLeast": "B",
+      "confidenceAtLeast": 50
+    }
+  },
+  {
+    "id": "EVAL-LOWQ-001",
+    "keyword": "美妆",
+    "input": {
+      "platform": "xiaohongshu",
+      "followers": 0,
+      "posts": 0,
+      "description": "",
+      "category": "未分类",
+      "contactInfo": {},
+      "recentPosts": []
+    },
+    "expected": {
+      "gradeAtMost": "C",
+      "confidenceAtMost": 30
+    }
+  }
+]

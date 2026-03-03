@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOC Discovery — 多平台KOC发现工具</title>
+    <meta name="description" content="自动搜索小红书、YouTube、抖音、TikTok上的KOC，采集信息并评估质量">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header" id="header">
+            <div class="header-inner">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 32 32" fill="none">
+                            <circle cx="16" cy="16" r="14" stroke="url(#grad1)" stroke-width="2.5" />
+                            <path d="M10 16.5L14 20.5L22 12.5" stroke="url(#grad1)" stroke-width="2.5"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                            <defs>
+                                <linearGradient id="grad1" x1="0" y1="0" x2="32" y2="32">
+                                    <stop stop-color="#a78bfa" />
+                                    <stop offset="1" stop-color="#06b6d4" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <h1>KOC Discovery</h1>
+                        <span class="logo-sub">多平台KOC智能发现工具</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-ghost" id="authBtn" title="平台登录管理">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                            <polyline points="10 17 15 12 10 7" />
+                            <line x1="15" y1="12" x2="3" y2="12" />
+                        </svg>
+                        <span>平台登录</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search Panel -->
+        <section class="search-section" id="searchSection">
+            <div class="search-card glass-card">
+                <div class="search-header">
+                    <h2>🔍 搜索 KOC</h2>
+                    <p>输入关键词，选择平台，自动发现优质KOC</p>
+                </div>
+
+                <div class="search-form">
+                    <div class="search-input-group">
+                        <div class="search-input-wrapper">
+                            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input type="text" id="keywordInput" placeholder="输入关键词，如：美妆教程、健身达人、科技测评..."
+                                autocomplete="off">
+                            <button class="btn btn-primary" id="searchBtn">
+                                <span>开始搜索</span>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <line x1="5" y1="12" x2="19" y2="12" />
+                                    <polyline points="12 5 19 12 12 19" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="search-options">
+                        <div class="platforms-select">
+                            <label>选择平台</label>
+                            <div class="platform-chips" id="platformChips">
+                                <button class="platform-chip active" data-platform="xiaohongshu">
+                                    <span class="chip-icon">📕</span>
+                                    <span>小红书</span>
+                                </button>
+                                <button class="platform-chip active" data-platform="youtube">
+                                    <span class="chip-icon">🎬</span>
+                                    <span>YouTube</span>
+                                </button>
+                                <button class="platform-chip active" data-platform="douyin">
+                                    <span class="chip-icon">🎵</span>
+                                    <span>抖音</span>
+                                </button>
+                                <button class="platform-chip active" data-platform="tiktok">
+                                    <span class="chip-icon">🎶</span>
+                                    <span>TikTok</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="filters-row">
+                            <div class="filter-group">
+                                <label>最大结果数</label>
+                                <select id="maxResults">
+                                    <option value="10">10</option>
+                                    <option value="20" selected>20</option>
+                                    <option value="30">30</option>
+                                    <option value="50">50</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <label>最小粉丝数</label>
+                                <input type="number" id="minFollowers" placeholder="如：1000" value="">
+                            </div>
+                            <div class="filter-group">
+                                <label>最大粉丝数</label>
+                                <input type="number" id="maxFollowers" placeholder="如：100000" value="">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Progress Panel -->
+        <section class="progress-section hidden" id="progressSection">
+            <div class="progress-card glass-card">
+                <div class="progress-header">
+                    <div class="progress-title">
+                        <div class="spinner"></div>
+                        <h3 id="progressTitle">正在搜索...</h3>
+                    </div>
+                    <span class="progress-percent" id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-platforms" id="progressPlatforms"></div>
+                <p class="progress-message" id="progressMessage"></p>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section hidden" id="resultsSection">
+            <!-- Stats Bar -->
+            <div class="stats-bar" id="statsBar">
+                <div class="stat-card glass-card">
+                    <div class="stat-value" id="totalKocs">0</div>
+                    <div class="stat-label">发现 KOC</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-value" id="avgScore">-</div>
+                    <div class="stat-label">平均评分</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-value" id="topGrade">-</div>
+                    <div class="stat-label">最高等级</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <div class="stat-value" id="withContact">0</div>
+                    <div class="stat-label">联系方式 / 可信度</div>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="results-toolbar">
+                <div class="toolbar-left">
+                    <h2>搜索结果</h2>
+                    <div class="results-tabs" id="resultsTabs">
+                        <button class="tab active" data-filter="all">全部</button>
+                        <button class="tab" data-filter="S">S级</button>
+                        <button class="tab" data-filter="A">A级</button>
+                        <button class="tab" data-filter="B">B级</button>
+                    </div>
+                </div>
+                <div class="toolbar-right">
+                    <select id="sortSelect">
+                        <option value="score">按评分</option>
+                        <option value="followers">按粉丝</option>
+                        <option value="engagement">按互动率</option>
+                    </select>
+                    <button class="btn btn-secondary" id="exportBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span>导出 CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- KOC Cards Grid -->
+            <div class="koc-grid" id="kocGrid"></div>
+        </section>
+
+        <!-- KOC Detail Modal -->
+        <div class="modal-overlay hidden" id="modalOverlay">
+            <div class="modal glass-card" id="detailModal">
+                <button class="modal-close" id="modalClose">&times;</button>
+                <div id="modalContent"></div>
+            </div>
+        </div>
+
+        <!-- Auth Modal -->
+        <div class="modal-overlay hidden" id="authOverlay">
+            <div class="modal glass-card auth-modal" id="authModal">
+                <button class="modal-close" id="authClose">&times;</button>
+                <h3>🔐 平台登录管理</h3>
+                <p class="auth-desc">小红书、抖音、TikTok 需要扫码登录后才能搜索。YouTube 使用 API Key（在 .env 中配置）。</p>
+                <div class="auth-platforms" id="authPlatforms"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
