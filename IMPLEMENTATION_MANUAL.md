@@ -69,6 +69,29 @@ npm run dev
 
 - `http://localhost:3000`
 
+## 4.1 小红书独立登录器
+
+推荐先单独完成小红书登录，再启动搜索：
+
+```bash
+npm run login:xhs
+```
+
+行为：
+
+- 打开独立的小红书登录窗口
+- 允许站点拉起协议页/登录页
+- 轮询真实登录 Cookie
+- 成功后保存到 `data/cookies/xiaohongshu.json`
+
+校验命令：
+
+```bash
+curl http://127.0.0.1:3000/api/auth/xiaohongshu/status
+```
+
+只有返回 `{"loggedIn":true}` 才算成功。
+
 ## 5. 启动与配置（MCP 模式）
 
 1. 先准备并启动你的 MCP 网关服务（必须实现本项目约定的 `/platform/{platform}/{action}` 接口）。

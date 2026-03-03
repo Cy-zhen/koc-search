@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node server/index.js",
     "start": "node server/index.js",
+    "login:xhs": "node scripts/xhs_login.mjs",
     "test:api:smoke": "node scripts/api_smoke_test.mjs",
     "test:evaluator": "node scripts/evaluator_fixture_test.mjs"
   },

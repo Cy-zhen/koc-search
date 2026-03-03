@@ -1,5 +1,6 @@
 import BasePlatform from './base.js';
 import browserManager from '../browser-manager.js';
+import { runXiaohongshuLoginFlow } from '../auth/xiaohongshu-login.js';
 
 /**
  * 小红书适配器 — Playwright 浏览器自动化
@@ -78,37 +79,7 @@ export default class XiaohongshuPlatform extends BasePlatform {
                 return { success: false, message: `MCP 登录失败: ${err.message}` };
             }
         }
-
-        try {
-            const page = await browserManager.newPage('xiaohongshu');
-            await page.goto(`${this.homeUrl}/explore`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-            // 等待用户手动扫码登录（最多 120 秒）
-            console.log('[小红书] 请在浏览器中扫码登录...');
-
-            try {
-                const timeoutMs = 120000;
-                const pollEveryMs = 1500;
-                const start = Date.now();
-
-                while (Date.now() - start < timeoutMs) {
-                    if (await this.hasAuthCookie()) {
-                        await browserManager.saveCookies('xiaohongshu');
-                        await page.close();
-                        return { success: true, message: '小红书登录成功！' };
-                    }
-                    await page.waitForTimeout(pollEveryMs);
-                }
-
-                await page.close();
-                return { success: false, message: '登录超时，请扫码后重试' };
-            } catch (err) {
-                await page.close();
-                return { success: false, message: `登录超时或失败: ${err.message}` };
-            }
-        } catch (err) {
-            return { success: false, message: `登录失败: ${err.message}` };
-        }
+        return runXiaohongshuLoginFlow();
     }
 
     async *search(keyword, options = {}) {
