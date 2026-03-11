@@ -5,6 +5,9 @@
 // ============ State ============
 const state = {
     keyword: '',
+    searchMode: 'notes',
+    skipSeen: true,
+    expandKeywords: false,
     selectedPlatforms: ['xiaohongshu', 'youtube', 'douyin', 'tiktok'],
     kocs: [],
     taskId: null,
@@ -69,6 +72,31 @@ function init() {
             (c) => c.dataset.platform
         );
     });
+
+    const modeChips = $('#modeChips');
+    if (modeChips) {
+        modeChips.addEventListener('click', (e) => {
+            const chip = e.target.closest('.mode-chip');
+            if (!chip) return;
+            $$('.mode-chip').forEach((c) => c.classList.remove('active'));
+            chip.classList.add('active');
+            state.searchMode = chip.dataset.mode || 'notes';
+        });
+    }
+
+    const skipSeen = $('#skipSeen');
+    if (skipSeen) {
+        skipSeen.addEventListener('change', () => {
+            state.skipSeen = !!skipSeen.checked;
+        });
+    }
+
+    const expandKeywords = $('#expandKeywords');
+    if (expandKeywords) {
+        expandKeywords.addEventListener('change', () => {
+            state.expandKeywords = !!expandKeywords.checked;
+        });
+    }
 
     // Tabs
     els.resultsTabs.addEventListener('click', (e) => {
@@ -150,6 +178,9 @@ async function startSearch() {
     const params = new URLSearchParams({
         keyword,
         platforms: state.selectedPlatforms.join(','),
+        searchMode: state.searchMode,
+        skipSeen: state.skipSeen ? 'true' : 'false',
+        expandKeywords: state.expandKeywords ? 'true' : 'false',
         maxResults: $('#maxResults').value,
         minFollowers: $('#minFollowers').value || '0',
         maxFollowers: $('#maxFollowers').value || '0',
@@ -357,6 +388,12 @@ function formatCount(num) {
     return String(num);
 }
 
+function formatFollowers(koc) {
+    if (koc.followers > 0) return formatCount(koc.followers);
+    if (koc.dataQuality && koc.dataQuality.profileFetched === false) return '未获取';
+    return formatCount(koc.followers);
+}
+
 function getScoreColor(score) {
     if (score >= 85) return 'var(--grade-s)';
     if (score >= 70) return 'var(--grade-a)';
@@ -481,6 +518,7 @@ function createKocCard(koc) {
           <span class="koc-name">${escapeHtml(koc.nickname)}</span>
           <span class="koc-grade grade-${grade}">${grade}</span>
         </div>
+        <div class="koc-username-row">@${escapeHtml(koc.username)}</div>
         <div class="koc-meta">
           <span class="koc-platform-badge">${koc.platformIcon || ''} ${koc.platform}</span>
           <span class="koc-category">${escapeHtml(koc.category)}</span>
@@ -490,7 +528,7 @@ function createKocCard(koc) {
 
     <div class="koc-stats">
       <div class="koc-stat">
-        <div class="koc-stat-value">${formatCount(koc.followers)}</div>
+        <div class="koc-stat-value">${formatFollowers(koc)}</div>
         <div class="koc-stat-label">粉丝</div>
       </div>
       <div class="koc-stat">
@@ -538,6 +576,18 @@ function openDetailModal(koc) {
       </div>`
         : '';
 
+    const relatedPostsHtml = (koc.relatedPosts || []).length > 0
+        ? `<div class="modal-related-posts">
+        <h4>📝 相关帖子 (${koc.noteAppearances || koc.relatedPosts.length})</h4>
+        ${(koc.relatedPosts || []).slice(0, 5).map((p) => `
+          <div class="related-post-row">
+            <span class="related-post-title">${escapeHtml(p.title || '')}</span>
+            <span class="related-post-likes">${escapeHtml(p.likes || '-')} 赞</span>
+          </div>
+        `).join('')}
+      </div>`
+        : '';
+
     const dimLabels = {
         engagementRate: '互动率',
         followerFit: '粉丝适配',
@@ -573,7 +623,7 @@ function openDetailModal(koc) {
 
     <div class="modal-stats-grid">
       <div class="modal-stat">
-        <div class="modal-stat-value">${formatCount(koc.followers)}</div>
+        <div class="modal-stat-value">${formatFollowers(koc)}</div>
         <div class="modal-stat-label">粉丝</div>
       </div>
       <div class="modal-stat">
@@ -598,6 +648,7 @@ function openDetailModal(koc) {
       <div class="radar-chart">${radarHtml}</div>
     </div>
 
+    ${relatedPostsHtml}
     ${contactHtml}
 
     ${koc.description ? `<div class="modal-desc">${escapeHtml(koc.description)}</div>` : ''}
@@ -713,11 +764,15 @@ async function exportCSV() {
     }
 
     try {
+        const exportKocs = state.kocs.map(koc => {
+            const { rawData, ...rest } = koc;
+            return rest;
+        });
         const resp = await fetch('/api/export', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                kocs: state.kocs,
+                kocs: exportKocs,
                 keyword: state.keyword,
             }),
         });

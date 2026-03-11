@@ -61,11 +61,39 @@ export default class BasePlatform {
     /**
      * 标准化 KOC 数据格式
      */
-    normalizeData(rawData) {
+    async normalizeData(rawData) {
+        const platformUserId = rawData.userId || '';
+        let internalId = platformUserId;
+
+        // 尝试从MongoDB获取或创建用户
+        if (process.env.MONGODB_URI) {
+            try {
+                const mongoDBManager = (await import('../db/mongodb.js')).default;
+                if (mongoDBManager.isConnected()) {
+                    const user = await mongoDBManager.upsertUser(
+                        this.name,
+                        platformUserId,
+                        {
+                            redId: rawData.username || '',
+                            nickname: rawData.nickname || '',
+                            avatar: rawData.avatar || '',
+                            description: rawData.description || '',
+                        }
+                    );
+                    internalId = user._id.toString();
+                }
+            } catch (err) {
+                console.warn(`[${this.name}] MongoDB 用户映射失败:`, err.message);
+                // 失败时回退到使用平台ID
+            }
+        }
+
         return {
+            _id: internalId,  // MongoDB内部ID或平台ID
             platform: this.name,
             platformIcon: this.icon,
-            userId: rawData.userId || '',
+            userId: internalId,  // 使用内部ID作为主ID
+            platformUserId: platformUserId,  // 保留原始平台ID
             username: rawData.username || '',
             nickname: rawData.nickname || '',
             avatar: rawData.avatar || '',
@@ -81,6 +109,8 @@ export default class BasePlatform {
             recentPosts: rawData.recentPosts || [],
             engagementRate: rawData.engagementRate || 0,
             dataQuality: rawData.dataQuality || null,
+            relatedPosts: rawData.relatedPosts || [],
+            noteAppearances: rawData.noteAppearances || 0,
             rawData: rawData,
         };
     }
@@ -130,9 +160,13 @@ export default class BasePlatform {
     parseCount(str) {
         if (typeof str === 'number') return str;
         if (!str) return 0;
-        str = String(str).trim().replace(/,/g, '').replace(/\s+/g, '');
+        str = String(str)
+            .trim()
+            .replace(/,/g, '')
+            .replace(/\s+/g, '')
+            .replace(/\+/g, '');
 
-        const cnMap = { '万': 10000, '亿': 100000000 };
+        const cnMap = { '千': 1000, '万': 10000, '亿': 100000000 };
         for (const [unit, multiplier] of Object.entries(cnMap)) {
             if (str.includes(unit)) {
                 return Math.round(parseFloat(str.replace(unit, '')) * multiplier);
@@ -205,7 +239,9 @@ export default class BasePlatform {
         if (Array.isArray(result?.updates) && result.updates.length > 0) {
             for (const update of result.updates) {
                 this.assertNotCancelled(options);
-                const normalized = (update.kocs || []).map((koc) => this.normalizeData(koc));
+                const normalized = await Promise.all(
+                    (update.kocs || []).map((koc) => this.normalizeData(koc))
+                );
                 yield {
                     progress: update.progress ?? 0,
                     message: update.message || '',
@@ -216,7 +252,9 @@ export default class BasePlatform {
             return;
         }
 
-        const normalized = (result?.kocs || []).map((koc) => this.normalizeData(koc));
+        const normalized = await Promise.all(
+            (result?.kocs || []).map((koc) => this.normalizeData(koc))
+        );
         yield {
             progress: 100,
             kocs: normalized,

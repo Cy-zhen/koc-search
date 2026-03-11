@@ -16,7 +16,7 @@ class BrowserManager {
     if (!context) return false;
     try {
       const page = await context.newPage();
-      await page.close().catch(() => {});
+      await page.close().catch(() => { });
       return true;
     } catch {
       return false;
@@ -62,7 +62,18 @@ class BrowserManager {
       Object.defineProperty(navigator, 'languages', {
         get: () => ['zh-CN', 'zh', 'en'],
       });
-      window.chrome = { runtime: {} };
+      window.chrome = { runtime: {}, loadTimes: () => ({}), csi: () => ({}) };
+
+      // 补充反检测属性
+      Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
+      if (!navigator.connection) {
+        Object.defineProperty(navigator, 'connection', {
+          get: () => ({ effectiveType: '4g', rtt: 50, downlink: 10 }),
+        });
+      }
+      // 隐藏自动化痕迹
+      delete window.__playwright;
+      delete window.__pw_manual;
     });
   }
 
@@ -97,7 +108,7 @@ class BrowserManager {
       if (usable) {
         return this.contexts[platform];
       }
-      await this.contexts[platform].close().catch(() => {});
+      await this.contexts[platform].close().catch(() => { });
       delete this.contexts[platform];
     }
 
@@ -160,7 +171,7 @@ class BrowserManager {
   async closeContext(platform) {
     if (this.contexts[platform]) {
       await this.saveCookies(platform);
-      await this.contexts[platform].close().catch(() => {});
+      await this.contexts[platform].close().catch(() => { });
       delete this.contexts[platform];
     }
   }

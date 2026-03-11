@@ -102,6 +102,33 @@
                             </div>
                         </div>
 
+                        <div class="search-mode-select">
+                            <label>搜索模式</label>
+                            <div class="mode-chips" id="modeChips">
+                                <button class="mode-chip active" data-mode="notes" type="button">
+                                    <span>📝</span>
+                                    <span>笔记发现</span>
+                                    <small>从帖子内容找创作者（推荐）</small>
+                                </button>
+                                <button class="mode-chip" data-mode="users" type="button">
+                                    <span>👤</span>
+                                    <span>用户搜索</span>
+                                    <small>按昵称匹配关键词</small>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="search-toggles">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="skipSeen" checked>
+                                <span>跳过已搜过的用户（多次搜索不重复）</span>
+                            </label>
+                            <label class="toggle-label">
+                                <input type="checkbox" id="expandKeywords">
+                                <span>自动扩展关联词（覆盖更多相关创作者）</span>
+                            </label>
+                        </div>
+
                         <div class="filters-row">
                             <div class="filter-group">
                                 <label>最大结果数</label>
@@ -110,6 +137,9 @@
                                     <option value="20" selected>20</option>
                                     <option value="30">30</option>
                                     <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="150">150</option>
+                                    <option value="200">200</option>
                                 </select>
                             </div>
                             <div class="filter-group">

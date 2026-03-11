@@ -33,8 +33,20 @@ export function evaluateKOC(kocData, keyword = '') {
         growthTrend: scoreGrowthTrend(kocData, interactionSignals),
     };
 
+    // 笔记发现模式下数据不完整，动态调整权重
+    const isNoteDiscovery = kocData.noteAppearances > 0 && kocData.followers <= 0;
+    const weights = isNoteDiscovery
+        ? {
+            engagementRate: 0.10,   // 无法计算，降权
+            followerFit: 0.05,      // 未知，降权
+            activityLevel: 0.30,    // noteAppearances 可参考，升权
+            contentRelevance: 0.40, // relatedPosts 有数据，核心依据
+            growthTrend: 0.15,
+        }
+        : WEIGHTS;
+
     let totalScore = 0;
-    for (const [dim, weight] of Object.entries(WEIGHTS)) {
+    for (const [dim, weight] of Object.entries(weights)) {
         totalScore += (scores[dim] || 0) * weight;
     }
 
@@ -107,7 +119,20 @@ function summarizeInteractionSignals(koc) {
 }
 
 function scoreEngagementRate(koc, interactionSignals) {
-    if (!koc.followers || koc.followers <= 0) return 45;
+    // 笔记模式：无粉丝数时用 relatedPosts 的点赞数估算互动水平
+    if (!koc.followers || koc.followers <= 0) {
+        const relatedPosts = koc.relatedPosts || [];
+        if (relatedPosts.length > 0) {
+            const totalLikes = relatedPosts.reduce((sum, p) => sum + (Number(p.likes) || 0), 0);
+            const avgLikes = totalLikes / relatedPosts.length;
+            if (avgLikes >= 1000) return 85;
+            if (avgLikes >= 500) return 75;
+            if (avgLikes >= 100) return 65;
+            if (avgLikes >= 30) return 55;
+            return 45;
+        }
+        return 50; // 无数据给中性分，而非低分
+    }
 
     if (interactionSignals.mode === 'engagement') {
         const rate = interactionSignals.rate;
@@ -132,6 +157,8 @@ function scoreEngagementRate(koc, interactionSignals) {
 }
 
 function scoreFollowerFit(followers) {
+    // 粉丝数未知时给中性分，不惩罚
+    if (!followers || followers <= 0) return 55;
     for (const range of IDEAL_FOLLOWER_RANGES) {
         if (followers >= range.min && followers < range.max) return range.score;
     }
@@ -140,34 +167,44 @@ function scoreFollowerFit(followers) {
 
 function scoreActivityLevel(koc) {
     const posts = koc.recentPosts || [];
+    let score = 35;
+
     if (posts.length === 0) {
-        if (koc.posts >= 100) return 70;
-        if (koc.posts >= 50) return 60;
-        if (koc.posts >= 20) return 50;
-        return 35;
+        if (koc.posts >= 100) score = 70;
+        else if (koc.posts >= 50) score = 60;
+        else if (koc.posts >= 20) score = 50;
+        else score = 35;
+    } else {
+        const dates = posts
+            .map((p) => new Date(p.publishTime || p.date))
+            .filter((d) => !isNaN(d))
+            .sort((a, b) => b - a);
+
+        if (dates.length >= 2) {
+            const spanDays = (dates[0] - dates[dates.length - 1]) / (1000 * 60 * 60 * 24);
+            const avgInterval = spanDays / (dates.length - 1);
+
+            if (avgInterval <= 1) score = 100;
+            else if (avgInterval <= 3) score = 85;
+            else if (avgInterval <= 7) score = 70;
+            else if (avgInterval <= 14) score = 55;
+            else score = 35;
+        } else if (posts.length >= 8) {
+            score = 80;
+        } else if (posts.length >= 5) {
+            score = 70;
+        } else if (posts.length >= 3) {
+            score = 60;
+        } else {
+            score = 50;
+        }
     }
 
-    const dates = posts
-        .map((p) => new Date(p.publishTime || p.date))
-        .filter((d) => !isNaN(d))
-        .sort((a, b) => b - a);
-
-    if (dates.length >= 2) {
-        const spanDays = (dates[0] - dates[dates.length - 1]) / (1000 * 60 * 60 * 24);
-        const avgInterval = spanDays / (dates.length - 1);
-
-        if (avgInterval <= 1) return 100;
-        if (avgInterval <= 3) return 85;
-        if (avgInterval <= 7) return 70;
-        if (avgInterval <= 14) return 55;
-        return 35;
+    if (koc.noteAppearances && koc.noteAppearances >= 2) {
+        score = Math.min(100, score + koc.noteAppearances * 5);
     }
 
-    // 无发布时间时，以近期可见内容数量做估计
-    if (posts.length >= 8) return 80;
-    if (posts.length >= 5) return 70;
-    if (posts.length >= 3) return 60;
-    return 50;
+    return score;
 }
 
 function scoreContentRelevance(koc, keyword) {
@@ -186,12 +223,17 @@ function scoreContentRelevance(koc, keyword) {
 
     const desc = (koc.description || '').toLowerCase();
     const category = (koc.category || '').toLowerCase();
+    const relatedPostTitles = (koc.relatedPosts || [])
+        .map((p) => p.title || '')
+        .join(' ')
+        .toLowerCase();
     const posts = koc.recentPosts || [];
 
     for (const term of terms) {
-        totalChecks += 2;
+        totalChecks += 3;
         if (desc.includes(term)) matchCount += 1;
         if (category.includes(term)) matchCount += 1;
+        if (relatedPostTitles.includes(term)) matchCount += 1;
     }
 
     for (const post of posts.slice(0, 5)) {
@@ -204,11 +246,16 @@ function scoreContentRelevance(koc, keyword) {
 
     if (totalChecks === 0) return 50;
     const ratio = matchCount / totalChecks;
-    if (ratio >= 0.5) return 100;
-    if (ratio >= 0.3) return 80;
-    if (ratio >= 0.15) return 60;
-    if (ratio > 0) return 40;
-    return 25;
+    let score = 25;
+    if (ratio >= 0.5) score = 100;
+    else if (ratio >= 0.3) score = 80;
+    else if (ratio >= 0.15) score = 60;
+    else if (ratio > 0) score = 40;
+
+    if (koc.noteAppearances >= 2) {
+        score = Math.min(100, score + 15);
+    }
+    return score;
 }
 
 function scoreGrowthTrend(koc, interactionSignals) {
@@ -244,17 +291,28 @@ function scoreGrowthTrend(koc, interactionSignals) {
         if (viewsPerFollower >= 2) return 55;
     }
 
-    return 45;
+    // 笔记模式：多次出现 + 帖子点赞多说明有增长潜力
+    if (koc.noteAppearances >= 2) {
+        const relatedPosts = koc.relatedPosts || [];
+        const totalLikes = relatedPosts.reduce((sum, p) => sum + (Number(p.likes) || 0), 0);
+        if (totalLikes >= 500 && koc.noteAppearances >= 3) return 75;
+        if (totalLikes >= 200) return 65;
+        if (totalLikes >= 50) return 55;
+    }
+
+    return 50;
 }
 
 function buildDataQuality(koc, interactionSignals) {
+    const relatedPosts = koc.relatedPosts || [];
+    const hasRelatedPosts = relatedPosts.length > 0;
     const checks = {
         followers: koc.followers > 0 ? 1 : 0,
         profileText: (koc.description || '').trim().length >= 10 ? 1 : 0,
         category: !!koc.category && !['未分类', '综合', 'General'].includes(koc.category) ? 1 : 0,
-        postsCount: koc.posts > 0 ? 1 : 0,
-        recentPosts: (koc.recentPosts || []).length >= 3 ? 1 : (koc.recentPosts || []).length > 0 ? 0.5 : 0,
-        interactionSignals: interactionSignals.mode === 'none' ? 0 : 1,
+        postsCount: koc.posts > 0 ? 1 : (hasRelatedPosts ? 0.5 : 0),
+        recentPosts: (koc.recentPosts || []).length >= 3 ? 1 : (koc.recentPosts || []).length > 0 ? 0.5 : (hasRelatedPosts ? 0.5 : 0),
+        interactionSignals: interactionSignals.mode === 'none' ? (hasRelatedPosts ? 0.5 : 0) : 1,
         contactInfo: Object.keys(koc.contactInfo || {}).length > 0 ? 1 : 0,
     };
 
@@ -279,7 +337,11 @@ function generateTags(koc, scores, dataQuality) {
     if (scores.followerFit >= 90) tags.push('粉丝适配');
     if (scores.growthTrend >= 80) tags.push('增长快');
     if (Object.keys(koc.contactInfo || {}).length > 0) tags.push('有联系方式');
-    if (dataQuality.level === 'low') tags.push('数据待核验');
+    // 笔记发现模式下的特有标签
+    if (koc.noteAppearances >= 3) tags.push('高频创作');
+    if (koc.noteAppearances >= 2 && scores.contentRelevance >= 70) tags.push('深耕赛道');
+    if (dataQuality.level === 'low' && koc.noteAppearances <= 0) tags.push('数据待核验');
+    else if (dataQuality.level === 'low') tags.push('仅笔记数据');
     return tags;
 }
 

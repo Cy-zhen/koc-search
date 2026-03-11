@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 const TASK_TTL_MS = parseInt(process.env.TASK_TTL_MS || '21600000', 10); // 6h
 const MAX_TASKS = parseInt(process.env.MAX_TASKS || '200', 10);
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // 平台注册
@@ -60,18 +60,86 @@ function pruneTasks() {
 
 setInterval(pruneTasks, 10 * 60 * 1000).unref();
 
+function normalizeProfileUrl(url) {
+    if (!url) return '';
+    try {
+        const parsed = new URL(url);
+        parsed.search = '';
+        parsed.hash = '';
+        return parsed.toString();
+    } catch {
+        return String(url).split('?')[0];
+    }
+}
+
+function scoreKocRichness(koc) {
+    return [
+        Number(koc.followers) || 0,
+        Number(koc.likes) || 0,
+        Number(koc.posts) || 0,
+        Number(koc.noteAppearances) || 0,
+        (koc.description || '').length,
+        Object.keys(koc.contactInfo || {}).length * 1000,
+        (koc.recentPosts || []).length * 100,
+        (koc.relatedPosts || []).length * 80,
+        koc.avatar ? 50 : 0,
+        koc.profileUrl ? 50 : 0,
+    ].reduce((sum, value) => sum + value, 0);
+}
+
+function mergeKocRecord(existing, incoming) {
+    if (!existing) return incoming;
+
+    return scoreKocRichness(incoming) >= scoreKocRichness(existing)
+        ? {
+            ...existing,
+            ...incoming,
+            contactInfo: {
+                ...(existing.contactInfo || {}),
+                ...(incoming.contactInfo || {}),
+            },
+            recentPosts:
+                (incoming.recentPosts || []).length >= (existing.recentPosts || []).length
+                    ? incoming.recentPosts
+                    : existing.recentPosts,
+            relatedPosts:
+                (incoming.relatedPosts || []).length >= (existing.relatedPosts || []).length
+                    ? incoming.relatedPosts
+                    : existing.relatedPosts,
+            noteAppearances: Math.max(incoming.noteAppearances || 0, existing.noteAppearances || 0),
+        }
+        : {
+            ...incoming,
+            ...existing,
+            contactInfo: {
+                ...(incoming.contactInfo || {}),
+                ...(existing.contactInfo || {}),
+            },
+            recentPosts:
+                (existing.recentPosts || []).length >= (incoming.recentPosts || []).length
+                    ? existing.recentPosts
+                    : incoming.recentPosts,
+            relatedPosts:
+                (existing.relatedPosts || []).length >= (incoming.relatedPosts || []).length
+                    ? existing.relatedPosts
+                    : incoming.relatedPosts,
+            noteAppearances: Math.max(existing.noteAppearances || 0, incoming.noteAppearances || 0),
+        };
+}
+
 function dedupeKocs(kocs) {
-    const seen = new Set();
-    const result = [];
+    const byKey = new Map();
 
     for (const koc of kocs || []) {
-        const stableId = koc.userId || koc.profileUrl || `${koc.nickname || ''}-${koc.username || ''}`;
+        const stableId =
+            koc.userId ||
+            normalizeProfileUrl(koc.profileUrl) ||
+            `${koc.nickname || ''}-${koc.username || ''}`;
         const key = `${koc.platform}::${stableId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        result.push(koc);
+        byKey.set(key, mergeKocRecord(byKey.get(key), koc));
     }
-    return result;
+
+    return [...byKey.values()];
 }
 
 function buildSummary(kocs) {
@@ -177,6 +245,7 @@ function buildKeywordMatcher(keywordPlan) {
             koc.username,
             koc.description,
             koc.category,
+            ...(koc.relatedPosts || []).map((p) => p.title || ''),
             ...(koc.recentPosts || []).map((p) => p.title || p.desc || ''),
         ]
             .filter(Boolean)
@@ -276,11 +345,29 @@ app.post('/api/tasks/:taskId/cancel', (req, res) => {
     res.json({ success: true, status: 'cancelled' });
 });
 
+app.post('/api/seen/clear', (req, res) => {
+    try {
+        platforms.xiaohongshu.clearSeenUsers();
+        res.json({ success: true, message: '已清空历史记录' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 /**
  * 启动搜索任务 (SSE 实时推送)
  */
 app.get('/api/search', async (req, res) => {
-    const { keyword, platforms: platformList, maxResults, minFollowers, maxFollowers } = req.query;
+    const {
+        keyword,
+        platforms: platformList,
+        maxResults,
+        minFollowers,
+        maxFollowers,
+        searchMode,
+        skipSeen,
+        expandKeywords,
+    } = req.query;
 
     if (!keyword) {
         return res.status(400).json({ error: '请提供搜索关键词' });
@@ -324,6 +411,9 @@ app.get('/api/search', async (req, res) => {
         maxResults: toInt(maxResults, 20),
         minFollowers: toInt(minFollowers, 0),
         maxFollowers: toInt(maxFollowers, 0),
+        searchMode: searchMode || 'notes',
+        skipSeen: skipSeen === 'true' || skipSeen === '1',
+        expandKeywords: expandKeywords === 'true' || expandKeywords === '1',
         signal: abortController.signal,
     };
 
@@ -546,7 +636,7 @@ app.get('/api/export/:taskId', (req, res) => {
     const rows = task.kocs.map((koc) => ({
         平台: koc.platform,
         名称: koc.nickname,
-        用户名: koc.username,
+        '小红书号/用户名': koc.username,
         粉丝数: koc.followers,
         总播放: koc.totalViews || 0,
         获赞数: koc.likes,
@@ -561,6 +651,9 @@ app.get('/api/export/:taskId', (req, res) => {
         微信: koc.contactInfo?.wechat || '',
         手机: koc.contactInfo?.phone || '',
         QQ: koc.contactInfo?.qq || '',
+        相关帖子数: koc.noteAppearances || 0,
+        帖子标题: (koc.relatedPosts || []).map((p) => p.title).join(' | ').slice(0, 200),
+        帖子发布时间: (koc.relatedPosts || []).map((p) => p.publishTime || '').filter(Boolean).join(' | ').slice(0, 200),
         简介: koc.description?.slice(0, 100) || '',
         主页链接: koc.profileUrl,
         建议: koc.evaluation?.recommendation || '',
@@ -596,7 +689,7 @@ app.post('/api/export', (req, res) => {
     const rows = kocs.map((koc) => ({
         平台: koc.platform,
         名称: koc.nickname,
-        用户名: koc.username,
+        '小红书号/用户名': koc.username,
         粉丝数: koc.followers,
         总播放: koc.totalViews || 0,
         获赞数: koc.likes,
@@ -611,6 +704,9 @@ app.post('/api/export', (req, res) => {
         微信: koc.contactInfo?.wechat || '',
         手机: koc.contactInfo?.phone || '',
         QQ: koc.contactInfo?.qq || '',
+        相关帖子数: koc.noteAppearances || 0,
+        帖子标题: (koc.relatedPosts || []).map((p) => p.title).join(' | ').slice(0, 200),
+        帖子发布时间: (koc.relatedPosts || []).map((p) => p.publishTime || '').filter(Boolean).join(' | ').slice(0, 200),
         简介: koc.description?.slice(0, 100) || '',
         主页链接: koc.profileUrl,
         建议: koc.evaluation?.recommendation || '',
